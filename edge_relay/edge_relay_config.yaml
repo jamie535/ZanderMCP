@@ -1,0 +1,34 @@
+# Edge Relay Configuration
+# This file configures the local relay that forwards LSL data to the cloud
+
+# LSL Stream Configuration
+lsl:
+  stream_name: "X.on-055601-0004"  # Name of the local LSL stream to read
+  # Will auto-discover stream by name
+
+# Cloud Server Configuration
+cloud:
+  endpoint: "ws://localhost:8765"  # WebSocket endpoint of ZanderMCP server
+  # For production, use: wss://your-domain.com/stream
+  api_key: "your-api-key-here"  # API key for authentication
+  user_id: "default_user"  # User identifier
+
+# Preprocessing Configuration
+preprocessing:
+  enabled: false  # Set to true to extract features locally (reduces bandwidth)
+  # When enabled, will send features instead of raw samples
+  # Features: band powers, ratios, etc.
+
+# Buffer Configuration
+buffer:
+  size: 1000  # Number of samples to buffer when cloud is disconnected
+  # Older samples beyond this limit will be dropped
+
+# Compression
+compression: "msgpack"  # Options: "msgpack", "json"
+# msgpack is more efficient but requires msgpack library
+
+# Logging
+logging:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+  file: "edge_relay.log"  # Log file path (optional)

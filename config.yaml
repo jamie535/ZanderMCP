@@ -1,0 +1,93 @@
+# ZanderMCP Configuration
+
+# WebSocket Server (receives data from edge relay)
+websocket:
+  host: "0.0.0.0"
+  port: 8765
+  max_connections: 100
+  heartbeat_interval: 30.0  # seconds
+
+# Signal Processing
+signal_processing:
+  chunk_length: 0.5  # seconds
+  chunk_step: 0.25   # seconds
+  sampling_rate: 250  # Hz
+
+  # Bandpass filter
+  filter:
+    low_cutoff: 1.0   # Hz
+    high_cutoff: 40.0  # Hz
+    order: 4
+
+  # Required EEG channels
+  channels:
+    frontal: ["F3", "F4"]
+    central: ["C3", "Cz", "C4"]
+    parietal: ["P3", "P4"]
+
+  # Frequency bands
+  bands:
+    delta: [1, 4]
+    theta: [4, 8]
+    alpha: [8, 13]
+    beta: [13, 30]
+    gamma: [30, 40]
+
+  # Workload calculation weights
+  workload_weights:
+    frontal_theta: 0.10
+    theta_beta_ratio: 0.45
+    parietal_alpha: 0.45
+    theta_alpha_ratio: 2.0
+
+# Classifiers
+classifiers:
+  default: "signal_processing"
+  available:
+    - signal_processing
+    - azure_workload_lstm  # Azure ML classifier (TODO: implement)
+    - azure_attention_cnn   # Azure ML classifier (TODO: implement)
+
+  # Azure ML model endpoints
+  azure_models:
+    azure_workload_lstm:
+      endpoint: "https://your-workload-model.azureml.net/score"
+      api_key_env: "AZURE_ML_WORKLOAD_KEY"  # Environment variable name
+      timeout: 5.0
+      retry_attempts: 3
+      fallback: "signal_processing"  # Fallback if Azure unavailable
+
+    azure_attention_cnn:
+      endpoint: "https://your-attention-model.azureml.net/score"
+      api_key_env: "AZURE_ML_ATTENTION_KEY"
+      timeout: 5.0
+      retry_attempts: 3
+      fallback: "signal_processing"
+
+# Database
+database:
+  pool_size: 20
+  max_overflow: 10
+  pool_timeout: 30.0
+
+  # What to persist
+  persist:
+    predictions: true
+    features: true
+    raw_samples: false  # Set to true for research, but high volume
+
+  # Batch writes for performance
+  batch_size: 50
+  flush_interval: 5.0  # seconds
+
+# Session Management
+session:
+  auto_start: true
+  timeout: 3600  # seconds, auto-end session after 1 hour of inactivity
+  save_metadata: true
+
+# Logging
+logging:
+  level: "INFO"
+  format: "json"  # or "text"
+  file: "logs/zandermcp.log"

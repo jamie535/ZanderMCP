@@ -1,0 +1,34 @@
+[project]
+name = "zandermcp"
+version = "0.1.0"
+description = "Cloud-based MCP server for real-time BCI classification and cognitive state monitoring"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.8.0",
+    "numpy>=2.2.6",
+    "scipy>=1.11.0",
+    "asyncpg>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "alembic>=1.13.0",
+    "websockets>=12.0",
+    "msgpack>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "aiohttp>=3.9.0",  # For Azure ML HTTP calls
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["database", "signal_processing", "classifiers", "ingestion", "tools", "edge_relay"]
