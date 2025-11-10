@@ -41,7 +41,7 @@
 
 ### High-Level Architecture
 
-```
+```python
 ┌─────────────────────────────────────────────────────────────┐
 │                    LOCAL ENVIRONMENT                         │
 │  ┌────────────┐        ┌──────────────────┐                │
@@ -108,7 +108,9 @@
 ### Why Hybrid Edge-Cloud?
 
 #### ❌ Pure Local Processing (Rejected)
+
 **Problems:**
+
 - Limited to single machine/location
 - Can't access from multiple AI clients
 - No centralized data storage for research
@@ -116,7 +118,9 @@
 - Difficult to scale classifiers
 
 #### ❌ Pure Cloud Processing (Rejected)
+
 **Problems:**
+
 - Can't stream raw EEG over internet (too much bandwidth: ~40-200 KB/s)
 - High latency from network transfer
 - LSL protocol is LAN-only
@@ -126,6 +130,7 @@
 #### ✅ Hybrid Edge-Cloud (Selected)
 
 **Benefits:**
+
 - ✅ **Optimal bandwidth**: Edge preprocessing reduces data to 5-10 KB/s
 - ✅ **Low latency**: Feature extraction happens locally (~10-20ms)
 - ✅ **Privacy-preserving**: Can send features instead of raw signals
@@ -140,6 +145,7 @@
 **Model Context Protocol (MCP)** is the emerging standard for connecting AI assistants to external data sources and tools.
 
 **Advantages:**
+
 - 🤖 **AI-native**: Designed specifically for LLM/AI integration
 - 🔌 **Standardized**: Works with Claude, Continue, and other MCP clients
 - 🛠️ **Tool-based**: AI can call functions declaratively
@@ -147,6 +153,7 @@
 - 📚 **Self-documenting**: Tools include descriptions for AI understanding
 
 **Alternative Approaches (Not Chosen):**
+
 - ❌ **REST API**: Requires custom client integration, not AI-native
 - ❌ **GraphQL**: More complex, overkill for this use case
 - ❌ **WebSocket direct**: No standardized protocol, hard to maintain
@@ -157,6 +164,7 @@
 Given the **mobile/wearable BCI** requirement:
 
 **Cloud deployment enables:**
+
 1. **Access anywhere**: User moves around with wearable device
 2. **Multiple sessions**: Different locations, same data store
 3. **Collaborative research**: Multiple researchers access same data
@@ -164,6 +172,7 @@ Given the **mobile/wearable BCI** requirement:
 5. **Scalability**: Add users/devices without infrastructure changes
 
 **When local deployment makes sense:**
+
 - Stationary lab setup with dedicated computer
 - Air-gapped/secure environments
 - Very low latency requirements (<20ms)
@@ -180,6 +189,7 @@ Given the **mobile/wearable BCI** requirement:
 **Purpose:** Bridge between local LSL streams and cloud server
 
 **Responsibilities:**
+
 - Read LSL stream via pylsl
 - Optional: Preprocess signals (filter, extract features)
 - Compress data (msgpack or JSON)
@@ -198,6 +208,7 @@ Given the **mobile/wearable BCI** requirement:
 | **Daemon mode** | Runs in background, auto-starts with system |
 
 **Implementation:**
+
 ```python
 # edge_relay/relay.py
 - LSL reader loop (reads samples)
@@ -207,6 +218,7 @@ Given the **mobile/wearable BCI** requirement:
 ```
 
 **Configuration:**
+
 ```yaml
 lsl:
   stream_name: "X.on-055601-0004"
@@ -228,6 +240,7 @@ buffer:
 **Purpose:** Central MCP server for classification, storage, and AI integration
 
 **Responsibilities:**
+
 - Accept WebSocket connections from edge relays
 - Route data to appropriate classifiers
 - Store predictions and features in database
@@ -237,7 +250,7 @@ buffer:
 
 **Architecture:**
 
-```
+```python
 ┌─────────────────────────────────────────┐
 │         ZanderMCP Server (FastMCP)       │
 │                                          │
@@ -292,6 +305,7 @@ buffer:
 Tools are organized into categories:
 
 **Real-time Tools** (low latency, <100ms):
+
 ```python
 @mcp.tool()
 async def get_current_cognitive_load() -> dict:
@@ -305,6 +319,7 @@ async def get_cognitive_state() -> dict:
 ```
 
 **Classifier Tools**:
+
 ```python
 @mcp.tool()
 async def list_classifiers() -> list:
@@ -320,6 +335,7 @@ async def get_classifier_info() -> dict:
 ```
 
 **Historical Tools** (moderate latency, query database):
+
 ```python
 @mcp.tool()
 async def query_workload_history(minutes: int = 10) -> dict:
@@ -335,6 +351,7 @@ async def analyze_cognitive_patterns(start: str, end: str) -> dict:
 ```
 
 **Research Tools**:
+
 ```python
 @mcp.tool()
 async def annotate_event(timestamp: str, label: str, notes: str) -> dict:
@@ -356,6 +373,7 @@ async def get_raw_features(timestamp: str) -> dict:
 **Design Philosophy:** Plugin architecture for extensibility
 
 **Base Interface:**
+
 ```python
 class BaseClassifier(ABC):
     @abstractmethod
@@ -374,13 +392,15 @@ class BaseClassifier(ABC):
 **Type:** Deterministic (no ML model required)
 
 **Algorithm:** Established neuroscience metrics
+
 - Frontal theta power (↑ with workload)
 - Theta/beta ratio in frontal regions (↑ with workload)
 - Parietal alpha power (↓ with workload)
 - Frontal theta / parietal alpha ratio (↑ with workload)
 
 **Pipeline:**
-```
+
+```python
 Raw EEG (n_channels × n_samples)
     ↓
 Bandpass Filter (1-40 Hz, Butterworth order 4)
@@ -397,6 +417,7 @@ Weighted Workload Index
 ```
 
 **Advantages:**
+
 - ✅ No training data required
 - ✅ Interpretable (based on neuroscience)
 - ✅ Fast inference (<20ms)
@@ -404,11 +425,13 @@ Weighted Workload Index
 - ✅ Works immediately
 
 **Limitations:**
+
 - ❌ Fixed weights (not personalized)
 - ❌ May not capture complex patterns
 - ❌ Limited to predefined features
 
 **Use Cases:**
+
 - Initial deployment (no training data yet)
 - Baseline comparison for ML models
 - Low-resource environments
@@ -419,12 +442,14 @@ Weighted Workload Index
 **Type:** Machine learning models hosted on Azure ML
 
 **Approach:** Call existing Azure-hosted models via REST API
+
 - Models already trained and deployed on Azure
 - ZanderMCP extracts features and sends to Azure endpoint
 - Azure returns predictions with confidence scores
 - Support for multiple model endpoints
 
 **Implementation:**
+
 ```python
 # classifiers/azure_ml.py (TODO)
 class AzureMLClassifier(BaseClassifier):
@@ -449,6 +474,7 @@ class AzureMLClassifier(BaseClassifier):
 ```
 
 **Configuration:**
+
 ```yaml
 # config.yaml
 classifiers:
@@ -460,6 +486,7 @@ classifiers:
 ```
 
 **Advantages:**
+
 - ✅ Leverage existing trained models
 - ✅ No local model hosting required
 - ✅ Can use powerful Azure compute for inference
@@ -467,6 +494,7 @@ classifiers:
 - ✅ A/B testing between models
 
 **Limitations:**
+
 - ❌ Requires Azure API key
 - ❌ Network latency (typically 50-150ms)
 - ❌ Dependent on Azure availability
@@ -482,6 +510,7 @@ If Azure endpoint is unavailable, fall back to signal processing classifier to m
 **Technology:** PostgreSQL + TimescaleDB extension
 
 **Why PostgreSQL?**
+
 - ✅ Mature, reliable, well-supported
 - ✅ ACID compliance for data integrity
 - ✅ JSON support for flexible schemas
@@ -489,6 +518,7 @@ If Azure endpoint is unavailable, fall back to signal processing classifier to m
 - ✅ TimescaleDB extension for time-series
 
 **Why TimescaleDB?**
+
 - ✅ Automatic time-based partitioning (hypertables)
 - ✅ Optimized for time-range queries
 - ✅ Continuous aggregates (real-time rollups)
@@ -560,6 +590,7 @@ SELECT create_hypertable('stream_samples', 'timestamp');
 ```
 
 **Indexing Strategy:**
+
 ```sql
 -- Fast session queries
 CREATE INDEX idx_predictions_session_time
@@ -577,6 +608,7 @@ ON predictions (classifier_name, timestamp DESC);
 **Persistence Strategy:**
 
 **Batched Writes** for performance:
+
 ```python
 # Don't write every sample immediately
 # Batch 50 samples, write every 5 seconds
@@ -596,6 +628,7 @@ await persistence_manager.add_prediction(...)
 ```
 
 **Why batching?**
+
 - ✅ Reduces database connections (from 40/sec to 1/5sec)
 - ✅ Lower transaction overhead
 - ✅ Better throughput (500-1000 writes/sec possible)
@@ -614,7 +647,7 @@ await persistence_manager.add_prediction(...)
 
 **Architecture:**
 
-```
+```XML
 ┌─────────────────────────────────────────┐
 │     ZanderMCP Server (Classification)    │
 │                                          │
@@ -640,6 +673,7 @@ await persistence_manager.add_prediction(...)
 ```
 
 **Configuration Example:**
+
 ```yaml
 # config.yaml
 classifiers:
@@ -665,6 +699,7 @@ classifiers:
 ```
 
 **Error Handling & Fallback:**
+
 ```python
 async def classify_with_fallback(eeg_data: np.ndarray):
     try:
@@ -685,6 +720,7 @@ async def classify_with_fallback(eeg_data: np.ndarray):
 ### End-to-End: EEG Device → AI Assistant
 
 **1. EEG Acquisition (Local)**
+
 ```
 EEG Device (250 Hz, 8 channels)
     ↓ USB/Bluetooth
@@ -696,6 +732,7 @@ Edge Relay reads sample
 ```
 
 **2. Edge Processing (Local)**
+
 ```
 Option A: Raw forwarding (no preprocessing)
     → Send all samples: 250 samples/sec × 8 channels × 4 bytes
@@ -709,6 +746,7 @@ Option B: Feature extraction (preprocessing enabled)
 ```
 
 **3. Network Transfer**
+
 ```
 WebSocket connection (TLS encrypted)
 Compression: msgpack (~40% smaller than JSON)
@@ -722,6 +760,7 @@ Message format:
 ```
 
 **4. Cloud Ingestion (ZanderMCP)**
+
 ```
 WebSocket server receives message
     ↓
@@ -733,6 +772,7 @@ Trigger classification if enough data
 ```
 
 **5. Classification**
+
 ```
 If raw samples: Accumulate until window full (0.5-1s)
     ↓
@@ -751,6 +791,7 @@ Or ML Classifier:
 ```
 
 **6. Persistence**
+
 ```
 Add to batch buffer
     ↓
@@ -764,6 +805,7 @@ Return (non-blocking, doesn't wait for DB)
 ```
 
 **7. MCP Tool Call (AI Assistant)**
+
 ```
 Claude Code: "How is my cognitive load?"
     ↓
@@ -803,6 +845,7 @@ Claude Code: "Your cognitive load is high (0.73) and increasing.
 **Deployment Options:**
 
 **1. Python Application (Recommended for MVP)**
+
 ```bash
 # Install dependencies
 pip install -e .
@@ -816,6 +859,7 @@ python edge_relay/relay.py edge_relay_config.yaml
 ```
 
 **2. Docker Container**
+
 ```dockerfile
 FROM python:3.12-slim
 # Install pylsl, websockets, etc.
@@ -823,6 +867,7 @@ CMD ["python", "edge_relay/relay.py"]
 ```
 
 **3. System Service (Linux)**
+
 ```ini
 [Unit]
 Description=ZanderMCP Edge Relay
@@ -838,6 +883,7 @@ WantedBy=multi-user.target
 ```
 
 **4. Mobile App (Future)**
+
 - React Native or Flutter
 - Embedded Python via Chaquopy (Android) or Kivy
 - Background service for continuous streaming
@@ -849,6 +895,7 @@ WantedBy=multi-user.target
 **Deployment Options:**
 
 **1. Docker Container (Recommended)**
+
 ```dockerfile
 FROM python:3.12-slim
 
@@ -865,6 +912,7 @@ CMD ["python", "server.py"]
 ```
 
 **docker-compose.yml:**
+
 ```yaml
 version: '3.8'
 
@@ -911,6 +959,7 @@ volumes:
 | **Heroku** | `git push heroku main` | $7-25/month |
 
 **Recommendation for MVP:** Fly.io or Railway
+
 - Simple deployment
 - Free tier or low cost
 - Built-in PostgreSQL
@@ -918,6 +967,7 @@ volumes:
 - SSL/TLS included
 
 **3. Kubernetes (Production Scale)**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -957,6 +1007,7 @@ spec:
 | **Timescale Cloud** | TimescaleDB | $0-50/month | Free tier available |
 
 **TimescaleDB Extension:**
+
 ```sql
 -- Most providers allow extensions
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
@@ -965,6 +1016,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 **Recommendation:** Neon (free tier) or Timescale Cloud (optimized)
 
 **2. Self-Hosted**
+
 ```bash
 docker run -d \
   --name timescaledb \
@@ -1022,17 +1074,20 @@ docker run -d \
 ### Vertical Scaling (Single Instance)
 
 **Expected Load per User:**
+
 - WebSocket connections: 1 per user
 - Database writes: 8-10 per second per user (batched)
 - Memory: ~10-20 MB per active session
 - CPU: 5-10% per active user (classification)
 
 **Single Instance Capacity:**
+
 - **Small VM** (2 CPU, 4GB RAM): 10-20 concurrent users
 - **Medium VM** (4 CPU, 8GB RAM): 50-100 concurrent users
 - **Large VM** (8 CPU, 16GB RAM): 200-500 concurrent users
 
 **Bottlenecks:**
+
 1. **WebSocket connections**: Limited by RAM and file descriptors
 2. **Database writes**: Limited by PostgreSQL connection pool
 3. **Classification compute**: Limited by CPU for signal processing
@@ -1040,11 +1095,13 @@ docker run -d \
 ### Horizontal Scaling (Multiple Instances)
 
 **Challenges:**
+
 - Sessions need to be sticky (same user → same server)
 - Database writes need coordination
 - Real-time state needs synchronization
 
 **Solution 1: Load Balancer with Session Affinity**
+
 ```
       Load Balancer (sticky sessions by user_id)
        /              |              \
@@ -1054,6 +1111,7 @@ ZanderMCP-1     ZanderMCP-2     ZanderMCP-3
 ```
 
 **Solution 2: Redis for Session State**
+
 ```
 ZanderMCP instances (stateless)
     ↓
@@ -1065,12 +1123,14 @@ PostgreSQL (persistent storage)
 ### Database Scaling
 
 **Query Optimization:**
+
 - **Indexes**: Create on frequently queried columns
 - **Partitioning**: Automatic via TimescaleDB hypertables
 - **Read replicas**: For historical queries
 - **Connection pooling**: Limit concurrent connections
 
 **Data Retention:**
+
 ```sql
 -- Automatically drop data older than 90 days
 SELECT add_retention_policy('predictions', INTERVAL '90 days');
@@ -1080,6 +1140,7 @@ SELECT add_compression_policy('predictions', INTERVAL '7 days');
 ```
 
 **Continuous Aggregates** (pre-computed rollups):
+
 ```sql
 -- Pre-compute hourly averages
 CREATE MATERIALIZED VIEW hourly_workload
@@ -1095,22 +1156,26 @@ GROUP BY hour, user_id;
 ### Cost Optimization
 
 **Development/MVP** (~$0-20/month):
+
 - Neon (free tier): PostgreSQL hosting
 - Fly.io (free tier): ZanderMCP server
 - Total: $0-5/month
 
 **Small Scale** (1-10 users, ~$30-50/month):
+
 - Neon ($19/month): 10GB database
 - Fly.io ($12/month): 1 small VM
 - Optional Redis ($5/month)
 
 **Medium Scale** (10-100 users, ~$100-300/month):
+
 - AWS RDS ($50/month): TimescaleDB instance
 - AWS ECS ($30/month): 2-3 containers
 - ElastiCache Redis ($20/month)
 - S3 for exports ($5/month)
 
 **Large Scale** (100-1000 users, ~$500-2000/month):
+
 - TimescaleDB Cloud ($200/month): Optimized instance
 - Kubernetes cluster ($300/month): Auto-scaling
 - Redis cluster ($50/month): Session caching
@@ -1123,6 +1188,7 @@ GROUP BY hour, user_id;
 ### Authentication & Authorization
 
 **Edge Relay → ZanderMCP:**
+
 ```
 WebSocket connection with:
 - X-API-Key: per-user API key
@@ -1131,6 +1197,7 @@ WebSocket connection with:
 ```
 
 **MCP Client → ZanderMCP:**
+
 ```
 MCP protocol doesn't standardize auth (yet)
 Options:
@@ -1142,6 +1209,7 @@ Options:
 ### Data Privacy
 
 **EEG Data Sensitivity:**
+
 - Brain data is considered **biometric information**
 - Subject to GDPR, HIPAA (depending on jurisdiction)
 - Cannot be anonymized (unique to individual)
@@ -1165,6 +1233,7 @@ Options:
 4. **Access Control**
    - Users only see their own data
    - Row-level security in PostgreSQL:
+
    ```sql
    ALTER TABLE predictions ENABLE ROW LEVEL SECURITY;
    CREATE POLICY user_isolation ON predictions
@@ -1185,6 +1254,7 @@ Options:
 ### Threat Model
 
 **Threats:**
+
 1. **Man-in-the-middle**: Intercept EEG data
    - **Mitigation**: TLS encryption
 
@@ -1209,18 +1279,21 @@ Options:
 **Optimization Strategies:**
 
 1. **Batch Sending**
+
    ```python
    # Send every 10 samples instead of every sample
    # Reduces overhead from 40 messages/sec to 4 messages/sec
    ```
 
 2. **Compression**
+
    ```python
    # msgpack is 40% smaller than JSON
    # 8 KB/sec → 5 KB/sec
    ```
 
 3. **Local Preprocessing**
+
    ```python
    # Extract features on edge
    # 8 KB/sec raw → 1-2 KB/sec features
@@ -1231,12 +1304,14 @@ Options:
 **Optimization Strategies:**
 
 1. **Async I/O**
+
    ```python
    # All I/O operations are async (non-blocking)
    # Database writes don't block classification
    ```
 
 2. **In-Memory Buffer**
+
    ```python
    # Latest samples in RAM for instant access
    # No database query for real-time tools
@@ -1244,12 +1319,14 @@ Options:
    ```
 
 3. **Batched Database Writes**
+
    ```python
    # Write 50 samples at once
    # Reduces DB overhead by 50x
    ```
 
 4. **Connection Pooling**
+
    ```python
    # Reuse database connections
    # Avoid connection overhead (100ms+ per connection)
@@ -1259,6 +1336,7 @@ Options:
    ```
 
 5. **Caching** (optional)
+
    ```python
    # Cache classifier results for identical inputs
    # Useful if multiple users or repeated patterns
@@ -1269,12 +1347,14 @@ Options:
 **Query Optimization:**
 
 1. **Indexes on Time + Session**
+
    ```sql
    CREATE INDEX idx_predictions_session_time
    ON predictions (session_id, timestamp DESC);
    ```
 
 2. **TimescaleDB Features**
+
    ```sql
    -- Automatic partitioning
    -- Queries only scan relevant chunks
@@ -1284,6 +1364,7 @@ Options:
    ```
 
 3. **Limit Query Results**
+
    ```python
    # Always use LIMIT for historical queries
    SELECT * FROM predictions
@@ -1293,6 +1374,7 @@ Options:
    ```
 
 **Expected Performance:**
+
 - Real-time query (<1ms): In-memory buffer
 - Recent history (last hour): <10ms from database
 - Historical analysis (full session): 100ms - 1s depending on size
@@ -1305,6 +1387,7 @@ Options:
 ### Phase 2: ML Classifier Support
 
 **Tasks:**
+
 1. Build model service (FastAPI)
 2. Create training pipeline
 3. Add model registry
@@ -1318,6 +1401,7 @@ Options:
 ### Phase 3: Advanced Analytics
 
 **Features:**
+
 1. **Pattern Detection**
    - Identify recurring cognitive states
    - Detect anomalies (unusual patterns)
@@ -1339,12 +1423,14 @@ Options:
 ### Phase 4: Multi-Modal Integration
 
 **Additional Sensors:**
+
 - Eye tracking (gaze, pupil diameter)
 - Heart rate variability (HRV)
 - Skin conductance (GSR)
 - Accelerometer (movement)
 
 **Fusion Approach:**
+
 ```
 EEG + Eye Tracking + HRV
     ↓
@@ -1360,6 +1446,7 @@ More accurate cognitive state
 ### Phase 5: Real-Time Adaptation
 
 **Closed-Loop Systems:**
+
 1. **Adaptive Task Difficulty**
    - Increase difficulty when load is low
    - Decrease when load is high
@@ -1380,6 +1467,7 @@ More accurate cognitive state
 ### Phase 6: Mobile App
 
 **Features:**
+
 - Mobile edge relay (Android/iOS)
 - Bluetooth EEG connection
 - Background streaming
@@ -1395,6 +1483,7 @@ More accurate cognitive state
 **ZanderMCP** represents a comprehensive approach to making brain-computer interface data accessible to AI assistants through the Model Context Protocol.
 
 **Key Innovations:**
+
 1. **Hybrid edge-cloud architecture** - Optimal bandwidth and latency
 2. **MCP-native design** - Purpose-built for AI integration
 3. **Research + Production** - Supports both real-time AI and data collection
@@ -1402,6 +1491,7 @@ More accurate cognitive state
 5. **Mobile-ready** - Works with wearable BCI devices
 
 **This architecture enables:**
+
 - ✅ AI assistants that adapt to user cognitive state
 - ✅ Continuous research data collection
 - ✅ Real-time neurofeedback applications
@@ -1409,6 +1499,7 @@ More accurate cognitive state
 - ✅ Multi-user cloud platform
 
 **Next Steps:**
+
 1. Implement main server.py (MCP server with WebSocket ingestion)
 2. Deploy MVP to cloud platform
 3. Test with real BCI device and edge relay
@@ -1432,11 +1523,11 @@ More accurate cognitive state
 
 ## References
 
-1. Model Context Protocol: https://modelcontextprotocol.io
-2. FastMCP: https://github.com/jlowin/fastmcp
-3. Lab Streaming Layer: https://labstreaminglayer.org
-4. TimescaleDB: https://docs.timescale.com
-5. EEG Band Powers: https://en.wikipedia.org/wiki/Electroencephalography
+1. Model Context Protocol: <https://modelcontextprotocol.io>
+2. FastMCP: <https://github.com/jlowin/fastmcp>
+3. Lab Streaming Layer: <https://labstreaminglayer.org>
+4. TimescaleDB: <https://docs.timescale.com>
+5. EEG Band Powers: <https://en.wikipedia.org/wiki/Electroencephalography>
 
 ---
 

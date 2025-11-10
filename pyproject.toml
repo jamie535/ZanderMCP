@@ -32,3 +32,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["database", "signal_processing", "classifiers", "ingestion", "tools", "edge_relay"]
+
+[tool.pyright]
+typeCheckingMode = "basic"
+reportOptionalMemberAccess = "none"
+reportAttributeAccessIssue = "none"
+reportArgumentType = "warning"
+
+[tool.pylance]
+typeCheckingMode = "basic"

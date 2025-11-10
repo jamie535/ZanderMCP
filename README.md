@@ -8,7 +8,7 @@ ZanderMCP enables AI assistants (Claude, Continue, etc.) to access real-time bra
 
 - **Edge Relay**: Lightweight local service that forwards LSL streams to the cloud
 - **ZanderMCP Server**: Cloud-hosted FastMCP server with classification and persistence
-- **Model Service**: Separate service for hosting ML classifiers (optional)
+- **Azure ML Models**: Cloud-hosted ML classifiers via HTTP REST API (optional)
 - **Database**: PostgreSQL + TimescaleDB for time-series data storage
 
 ## Architecture
@@ -69,36 +69,44 @@ ZanderMCP enables AI assistants (Claude, Continue, etc.) to access real-time bra
   - Optional local preprocessing
   - Compression support (msgpack/json)
 
-### 🚧 In Progress (Phase 2)
+### ✅ Implemented (Phase 2)
 
 - **ZanderMCP Server** (server.py)
-  - FastMCP implementation
-  - WebSocket server for edge relay
-  - MCP tools for cognitive load queries
-  - Session management
-  - Real-time classification pipeline
+  - FastMCP implementation with lifespan management
+  - WebSocket server for edge relay connections
+  - 14 MCP tools for cognitive state monitoring
+  - Real-time and historical queries
+  - Session management and event annotation
+  - In-memory stream buffer for low-latency queries
+
+- **Development Tools**
+  - Docker Compose for local database
+  - MCP Inspector integration (`mcp dev server.py`)
+  - Alembic migrations initialized
+
+### 🚧 In Progress (Phase 3)
 
 - **ML Classifier Integration**
   - HTTP client for Azure-hosted models
   - Feature extraction and preprocessing
-  - Fallback to signal processing classifier
+  - Multiple model support
 
-- **Deployment**
-  - Docker containers
-  - docker-compose for local dev
-  - Cloud deployment configs
+- **Production Deployment**
+  - Kubernetes manifests
+  - Cloud Run deployment
+  - Load balancing and scaling
 
 ## Project Structure
 
 ```
 ZanderMCP/
-├── server.py                      # Main FastMCP server (TODO)
+├── server.py                      # Main FastMCP server ✓
 ├── edge_relay/
 │   ├── relay.py                   # Edge relay application ✓
 │   └── edge_relay_config.yaml     # Edge relay config ✓
 ├── ingestion/
-│   ├── websocket_server.py        # WebSocket ingestion (TODO)
-│   └── stream_buffer.py           # Real-time buffer (TODO)
+│   ├── websocket_server.py        # WebSocket ingestion ✓
+│   └── stream_buffer.py           # Real-time buffer ✓
 ├── classifiers/
 │   ├── base.py                    # Base classifier ✓
 │   ├── signal_processing.py       # Signal processing classifier ✓
@@ -111,10 +119,11 @@ ZanderMCP/
 │   ├── connection.py              # DB connection ✓
 │   └── persistence.py             # Batched writes ✓
 ├── tools/
-│   ├── realtime.py                # Real-time MCP tools (TODO)
-│   ├── history.py                 # Historical query tools (TODO)
-│   └── session.py                 # Session management (TODO)
+│   ├── realtime.py                # Real-time MCP tools ✓
+│   ├── history.py                 # Historical query tools ✓
+│   └── session.py                 # Session management ✓
 ├── alembic/                        # Database migrations ✓
+├── docker-compose.yml              # Local database setup ✓
 ├── pyproject.toml                  # Dependencies ✓
 ├── config.yaml                     # Server configuration ✓
 ├── .env.example                    # Environment variables template ✓
@@ -126,41 +135,51 @@ ZanderMCP/
 ### Prerequisites
 
 - Python 3.12+
-- PostgreSQL with TimescaleDB extension
+- Docker (for local database)
 - For edge relay: LSL-compatible EEG device
 
-### Setup
+### Quick Start
 
 1. **Clone and install dependencies:**
 
 ```bash
+git clone <repository-url>
 cd ZanderMCP
-pip install -e .
-# or with uv:
 uv pip install -e .
 ```
 
-2. **Configure environment:**
+2. **Start the database:**
+
+```bash
+# Start PostgreSQL + TimescaleDB in Docker
+docker-compose up -d
+
+# Initialize database schema
+uv run alembic upgrade head
+```
+
+3. **Configure environment:**
 
 ```bash
 cp .env.example .env
-# Edit .env with your database URL and API keys
+# Edit .env with your configuration (default values work for local dev)
 ```
 
-3. **Initialize database:**
+4. **Start the server:**
 
 ```bash
-# Create database schema and TimescaleDB hypertables
-alembic upgrade head
-# or run initialization script:
-python -c "import asyncio; from database.connection import init_database; asyncio.run(init_database())"
+# Run in MCP dev mode (with inspector):
+uv run mcp dev server.py
+
+# Open http://localhost:6274 in your browser to see the MCP Inspector
 ```
 
-4. **Configure edge relay:**
+5. **Configure edge relay (optional):**
 
 Edit `edge_relay/edge_relay_config.yaml`:
+
 - Set `lsl.stream_name` to your EEG device's LSL stream name
-- Set `cloud.endpoint` to your ZanderMCP server URL
+- Set `cloud.endpoint` to your ZanderMCP server URL (default: ws://localhost:8765)
 - Set `cloud.api_key` and `cloud.user_id`
 
 ## Usage
@@ -173,20 +192,29 @@ python relay.py edge_relay_config.yaml
 ```
 
 The edge relay will:
+
 1. Connect to your local LSL stream
 2. Connect to the cloud ZanderMCP server
 3. Forward EEG data continuously
 4. Auto-reconnect if connection is lost
 5. Buffer data during disconnections
 
-### Running ZanderMCP Server (Cloud)
+### Running ZanderMCP Server
 
 ```bash
-# TODO: Once server.py is implemented
-python server.py
-# or with MCP dev mode:
-mcp dev server.py
+# Development mode (with MCP Inspector):
+uv run mcp dev server.py
+
+# Production mode:
+uv run python server.py
 ```
+
+The server will:
+
+1. Start WebSocket server on ws://0.0.0.0:8765
+2. Connect to the database
+3. Initialize classifiers
+4. Expose 14 MCP tools for AI assistants
 
 ### Using with AI Clients
 
@@ -217,27 +245,34 @@ AI: "Your cognitive load is moderately high (0.73) and increasing.
      You might want to take a break soon."
 ```
 
-## MCP Tools (Planned)
+## Available MCP Tools
 
-### Real-time Tools
-- `get_current_cognitive_load()` - Latest workload prediction
-- `get_cognitive_state()` - Current state with context
-- `check_attention_level()` - Attention score
+The server exposes 14 MCP tools that AI assistants can use:
 
-### Classifier Tools
-- `list_classifiers()` - Available classifiers
-- `switch_classifier(name)` - Change active classifier
-- `get_classifier_info()` - Current classifier metadata
+### Real-time Monitoring
 
-### Historical Tools
-- `query_workload_history(minutes)` - Recent trends
-- `get_session_summary()` - Session statistics
-- `analyze_cognitive_patterns(start, end)` - Pattern analysis
+- **`get_current_cognitive_load(user_id?)`** - Latest workload prediction with trend
+- **`get_cognitive_state(user_id?)`** - Interpreted state (focused/moderate/high_load/overloaded) with actionable recommendations
+- **`get_workload_trend(minutes=5, user_id?)`** - Trend analysis over recent time period
+- **`get_buffer_status()`** - In-memory buffer statistics for all active sessions
 
-### Research Tools
-- `export_session_data(format)` - Download data
-- `get_raw_features(timestamp)` - Raw features for debugging
-- `annotate_event(timestamp, label, notes)` - Mark events
+### Historical Queries
+
+- **`query_workload_history(minutes=10, user_id?, session_id?)`** - Historical predictions from database with statistics
+- **`get_session_summary(session_id)`** - Session info, duration, prediction statistics, event count
+- **`analyze_cognitive_patterns(start, end, user_id?)`** - Pattern analysis with trend detection and high/low load periods
+- **`get_recent_events(limit=10, user_id?, session_id?)`** - Recent annotated events
+
+### Session Management
+
+- **`annotate_event(label, notes?, session_id?, user_id?)`** - Mark significant moments during data collection
+- **`get_active_sessions(user_id?)`** - List currently active recording sessions
+- **`end_session(session_id, notes?)`** - Close a recording session
+
+### Server Info
+
+- **`list_classifiers()`** - Available classification models and their metadata
+- **`get_server_stats()`** - Connection info, buffer stats, and system status
 
 ## Database Schema
 
@@ -253,6 +288,7 @@ AI: "Your cognitive load is moderately high (0.73) and increasing.
 ### Time-Series Optimization
 
 Tables `predictions` and `stream_samples` use TimescaleDB hypertables for:
+
 - Automatic partitioning by time
 - Efficient time-range queries
 - Data retention policies
@@ -263,6 +299,7 @@ Tables `predictions` and `stream_samples` use TimescaleDB hypertables for:
 ### server.py Configuration (config.yaml)
 
 See `config.yaml` for full configuration options:
+
 - WebSocket server settings
 - Signal processing parameters
 - Classifier configuration
@@ -272,6 +309,7 @@ See `config.yaml` for full configuration options:
 ### Edge Relay Configuration
 
 See `edge_relay/edge_relay_config.yaml`:
+
 - LSL stream name
 - Cloud endpoint and auth
 - Preprocessing options
@@ -327,25 +365,30 @@ docker-compose logs -f zandermcp
 ## Use Cases
 
 ### 1. Adaptive AI Assistants
+
 AI assistants detect high cognitive load and:
+
 - Simplify explanations
 - Suggest breaks
 - Adjust interaction complexity
 - Provide encouragement
 
 ### 2. Research & Data Collection
+
 - Continuous data logging
 - Event annotation
 - Session management
 - Export for offline analysis
 
 ### 3. Neurofeedback Applications
+
 - Real-time workload monitoring
 - Training applications
 - Performance optimization
 - Attention training
 
 ### 4. BCI Control Systems
+
 - Intent detection
 - Command classification
 - Adaptive interfaces
@@ -363,6 +406,7 @@ AI assistants detect high cognitive load and:
 ## Contributing
 
 Contributions welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new features
@@ -381,6 +425,7 @@ Contributions welcome! Please:
 ## Support
 
 For issues, questions, or contributions:
+
 - GitHub Issues: [repository URL]
 - Documentation: [docs URL]
 - Email: [contact email]

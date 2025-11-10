@@ -7,13 +7,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ZanderMCP is a cloud-based MCP (Model Context Protocol) server for real-time BCI (Brain-Computer Interface) classification and cognitive state monitoring. It enables AI assistants to access real-time brain data for adaptive behavior.
 
 **Architecture:** Hybrid edge-cloud system with three main components:
+
 1. **Edge Relay** (local): Reads LSL streams from EEG devices, forwards to cloud via WebSocket
-2. **ZanderMCP Server** (cloud): FastMCP server with classification, persistence, and MCP tools (TODO)
+2. **ZanderMCP Server** (cloud): FastMCP server with classification, persistence, and MCP tools
 3. **Database**: PostgreSQL + TimescaleDB for time-series data storage
 
 ## Development Commands
 
 ### Installation
+
 ```bash
 # Install dependencies
 pip install -e .
@@ -22,30 +24,41 @@ uv pip install -e .
 ```
 
 ### Database
+
 ```bash
+# Start database (Docker)
+docker-compose up -d
+
+# Stop database
+docker-compose down
+
 # Initialize database (run migrations)
-alembic upgrade head
+uv run alembic upgrade head
 
 # Create a new migration
-alembic revision --autogenerate -m "description"
+uv run alembic revision --autogenerate -m "description"
 
 # Rollback migration
-alembic downgrade -1
+uv run alembic downgrade -1
 ```
 
 ### Running Components
+
 ```bash
 # Run edge relay (local machine with EEG device)
 cd edge_relay
 python relay.py edge_relay_config.yaml
 
-# Run ZanderMCP server (TODO - not implemented yet)
-python server.py
-# or in MCP dev mode:
-mcp dev server.py
+# Run ZanderMCP server
+uv run python server.py
+
+# Run in MCP dev mode (with inspector):
+uv run mcp dev server.py
+# Then open http://localhost:6274 in your browser
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 pytest tests/
@@ -55,6 +68,7 @@ pytest tests/test_signal_processing.py
 ```
 
 ### Code Quality
+
 ```bash
 # Format code
 black .
@@ -109,6 +123,7 @@ Located in `signal_processing/` (ported from bci-direct project):
 4. **Workload calculation** (weighted combination) - `features.py:calculate_workload()`
 
 Weights for workload (from config.yaml):
+
 - Frontal theta: 0.10
 - Theta/beta ratio: 0.45
 - Parietal alpha: 0.45
@@ -117,6 +132,7 @@ Weights for workload (from config.yaml):
 ### Database Schema
 
 **Core Tables:**
+
 - `sessions`: BCI recording sessions (user_id, start_time, device_info)
 - `predictions`: Classification predictions (hypertable, indexed by timestamp + session_id + user_id)
 - `events`: User-annotated research events
@@ -125,6 +141,7 @@ Weights for workload (from config.yaml):
 - `model_predictions`: Model performance tracking
 
 **Important indexes:**
+
 - `idx_predictions_session_time`: (session_id, timestamp DESC) - for session queries
 - `idx_predictions_user_time`: (user_id, timestamp DESC) - for user history
 - `idx_predictions_classifier`: (classifier_name, timestamp DESC) - for classifier comparison
@@ -132,6 +149,7 @@ Weights for workload (from config.yaml):
 ## Configuration
 
 ### Main Server Config (config.yaml)
+
 - WebSocket server settings (host, port, max_connections)
 - Signal processing parameters (chunk_length, sampling_rate, filter cutoffs)
 - Required EEG channels (frontal: F3/F4, central: C3/Cz/C4, parietal: P3/P4)
@@ -140,6 +158,7 @@ Weights for workload (from config.yaml):
 - Session management (timeout, auto_start)
 
 ### Edge Relay Config (edge_relay/edge_relay_config.yaml)
+
 - LSL stream name (must match EEG device)
 - Cloud endpoint (WebSocket URL)
 - API key and user_id for authentication
@@ -147,6 +166,7 @@ Weights for workload (from config.yaml):
 - Buffer size and compression settings
 
 ### Environment Variables (.env)
+
 - `POSTGRES_URL`: Database connection string (required)
 - `WEBSOCKET_HOST` and `WEBSOCKET_PORT`: WebSocket server config
 - `AZURE_ML_ENDPOINT`: Azure-hosted model REST API endpoint (optional)
@@ -157,48 +177,62 @@ Weights for workload (from config.yaml):
 ## Implementation Status
 
 ### ✅ Phase 1 Complete
+
 - Database layer (SQLAlchemy async, connection pooling, batched writes)
 - Signal processing (filtering, PSD, band powers, deterministic workload)
 - Classifiers (base interface, signal processing classifier)
 - Edge relay (LSL reading, WebSocket forwarding, auto-reconnect, buffering)
 - Alembic migrations setup
 
-### 🚧 Phase 2 In Progress (TODO)
-- **server.py**: Main FastMCP server (not implemented)
-- **ingestion/websocket_server.py**: WebSocket server for edge relay connections
-- **ingestion/stream_buffer.py**: In-memory buffer for real-time queries
-- **tools/**: MCP tools for AI assistants (realtime.py, history.py, session.py)
-- **classifiers/ml_client.py**: ML classifier client for Azure-hosted models
+### ✅ Phase 2 Complete
+
+- **server.py**: Main FastMCP server with lifespan management (410 lines)
+- **ingestion/websocket_server.py**: WebSocket server for edge relay connections (450 lines)
+- **ingestion/stream_buffer.py**: In-memory buffer for real-time queries (340 lines)
+- **tools/realtime.py**: Real-time cognitive state monitoring (450+ lines)
+- **tools/history.py**: Historical database queries (400+ lines)
+- **tools/session.py**: Session management and event annotation (270+ lines)
+- **Docker**: docker-compose.yml for TimescaleDB development database
+- **Database**: Alembic migrations initialized and applied
 
 ### 📋 Phase 3+ Planned
-- Docker deployment (Dockerfile, docker-compose.yml)
+
+- **classifiers/ml_client.py**: ML classifier client for Azure-hosted models
 - Advanced analytics and pattern detection
 - Multi-modal sensor fusion
 - Mobile edge relay app
 - Model training pipeline for new Azure models
+- Production deployment (Kubernetes/Cloud Run)
+- Data export tools (CSV/JSON/Parquet)
 
-## MCP Tools (Planned API)
+## MCP Tools (Implemented)
 
-When implementing tools/ directory, expose these MCP tools:
+The server exposes 14 MCP tools for AI assistants:
 
-**Real-time:**
-- `get_current_cognitive_load()` → {workload, confidence, timestamp, trend}
-- `get_cognitive_state()` → {state, intensity, duration, recommendations}
+**Real-time Monitoring:**
 
-**Classifiers:**
-- `list_classifiers()` → list of available classifiers
-- `switch_classifier(name)` → change active classifier
-- `get_classifier_info()` → current classifier metadata
+- `get_current_cognitive_load(user_id?)` → Latest workload with confidence and trend
+- `get_cognitive_state(user_id?)` → Interpreted state (focused/moderate/high_load/overloaded) with recommendations
+- `get_workload_trend(minutes=5, user_id?)` → Trend analysis over time period
+- `get_buffer_status()` → In-memory buffer statistics
 
-**Historical:**
-- `query_workload_history(minutes)` → recent trends
-- `get_session_summary()` → session statistics
-- `analyze_cognitive_patterns(start, end)` → pattern analysis
+**Historical Queries:**
 
-**Research:**
-- `annotate_event(timestamp, label, notes)` → mark events
-- `export_session_data(session_id, format)` → CSV/JSON/Parquet export
-- `get_raw_features(timestamp)` → raw feature vector
+- `query_workload_history(minutes=10, user_id?, session_id?)` → Historical predictions from database
+- `get_session_summary(session_id)` → Session statistics and info
+- `analyze_cognitive_patterns(start, end, user_id?)` → Pattern analysis with trend detection
+- `get_recent_events(limit=10, user_id?, session_id?)` → Recent annotated events
+
+**Session Management:**
+
+- `annotate_event(label, notes?, session_id?, user_id?)` → Mark significant moments
+- `get_active_sessions(user_id?)` → List active recording sessions
+- `end_session(session_id, notes?)` → Close a session
+
+**Server Info:**
+
+- `list_classifiers()` → Available classification models
+- `get_server_stats()` → Connection info, buffer stats, system status
 
 ## Important Implementation Notes
 
@@ -225,6 +259,7 @@ When implementing tools/ directory, expose these MCP tools:
 ## Adding a New Classifier
 
 ### Option 1: Azure-Hosted ML Model
+
 1. Create new file in `classifiers/` (e.g., `azure_workload_classifier.py`)
 2. Inherit from `BaseClassifier` (classifiers/base.py)
 3. Implement `async def predict(eeg_data: np.ndarray, **kwargs)`:
@@ -237,6 +272,7 @@ When implementing tools/ directory, expose these MCP tools:
 7. Register in classifier manager (server.py, when implemented)
 
 ### Option 2: Local Classifier
+
 1. Create new file in `classifiers/` (e.g., `my_classifier.py`)
 2. Inherit from `BaseClassifier` (classifiers/base.py)
 3. Implement `async def predict(eeg_data: np.ndarray, **kwargs) -> Dict[str, Any]`
@@ -254,8 +290,8 @@ When implementing tools/ directory, expose these MCP tools:
 
 ## References
 
-- MCP Specification: https://modelcontextprotocol.io
-- FastMCP Documentation: https://github.com/jlowin/fastmcp
-- Lab Streaming Layer: https://labstreaminglayer.org
-- TimescaleDB Docs: https://docs.timescale.com
+- MCP Specification: <https://modelcontextprotocol.io>
+- FastMCP Documentation: <https://github.com/jlowin/fastmcp>
+- Lab Streaming Layer: <https://labstreaminglayer.org>
+- TimescaleDB Docs: <https://docs.timescale.com>
 - Original signal processing: bci-direct project
