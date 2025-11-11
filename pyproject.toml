@@ -36,9 +36,6 @@ packages = ["database", "signal_processing", "classifiers", "ingestion", "tools"
 
 [tool.pyright]
 typeCheckingMode = "basic"
-reportOptionalMemberAccess = "none"
-reportAttributeAccessIssue = "none"
-reportArgumentType = "warning"
 
 [tool.pylance]
 typeCheckingMode = "basic"
