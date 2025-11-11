@@ -239,6 +239,8 @@ buffer:
 
 **Purpose:** Central MCP server for classification, storage, and AI integration
 
+**Implementation Status:** ✅ **Phase 2 Complete** (950+ lines, production-ready)
+
 **Responsibilities:**
 
 - Accept WebSocket connections from edge relays
@@ -247,6 +249,16 @@ buffer:
 - Expose MCP tools for AI clients
 - Manage sessions and user state
 - Handle authentication and authorization
+
+**FastMCP Best Practices Implemented:**
+
+1. ✅ **Lifespan Management** - Proper async context manager for startup/shutdown
+2. ✅ **Context API** - Safe service access via `_get_app_context(ctx)`
+3. ✅ **Error Handling** - All tools use `ToolError` with proper exception handling
+4. ✅ **Input Validation** - Parameter validation with clear error messages
+5. ✅ **Security** - `mask_error_details=True` for production deployment
+6. ✅ **Documentation** - Example return values in all tool docstrings
+7. ✅ **Configuration** - Declarative `fastmcp.json` with environment variables
 
 **Architecture:**
 
@@ -302,20 +314,53 @@ buffer:
 
 **MCP Tools Design:**
 
-Tools are organized into categories:
+Tools are organized into categories and follow FastMCP best practices:
 
 **Real-time Tools** (low latency, <100ms):
 
 ```python
 @mcp.tool()
-async def get_current_cognitive_load() -> dict:
-    """Get latest workload prediction with confidence."""
-    # Returns: {workload, confidence, timestamp, trend}
+async def get_current_cognitive_load(
+    user_id: Optional[str] = None,
+    ctx: Context = None  # FastMCP Context API
+) -> dict:
+    """Get latest workload prediction with confidence.
+
+    Returns:
+        Dictionary with:
+        - workload: float (0.0 to 1.0, normalized cognitive load)
+        - confidence: float (0.0 to 1.0, prediction confidence)
+        - timestamp: ISO 8601 timestamp
+        - trend: str ("increasing", "stable", "decreasing")
+
+    Example:
+        {
+            "workload": 0.65,
+            "confidence": 0.89,
+            "timestamp": "2025-01-10T14:23:15.123Z",
+            "trend": "increasing"
+        }
+    """
+    try:
+        app_ctx = _get_app_context(ctx)  # Safe service retrieval
+        result = await app_ctx.realtime_tools.get_current_cognitive_load(user_id)
+        if ctx:
+            await ctx.info(f"Retrieved cognitive load: {result.get('workload')}")
+        return result
+    except ToolError:
+        raise  # Re-raise ToolError as-is
+    except Exception as e:
+        if ctx:
+            await ctx.error(f"Cognitive load query failed: {e}")
+        raise ToolError("Failed to retrieve cognitive load. Please try again.")
 
 @mcp.tool()
-async def get_cognitive_state() -> dict:
-    """Get interpreted cognitive state (focused/fatigued/etc)."""
-    # Returns: {state, intensity, duration, recommendations}
+async def get_cognitive_state(
+    user_id: Optional[str] = None,
+    ctx: Context = None
+) -> dict:
+    """Get interpreted cognitive state with recommendations."""
+    # Similar pattern with error handling and context logging
 ```
 
 **Classifier Tools**:
@@ -1033,8 +1078,8 @@ docker run -d \
 
 | Component | Technology | Version | Purpose |
 |-----------|------------|---------|---------|
-| **MCP Framework** | FastMCP | 1.8.0+ | Model Context Protocol server |
-| **Python** | CPython | 3.12+ | Runtime |
+| **MCP Framework** | FastMCP | 2.13.0+ | Model Context Protocol server (with best practices) |
+| **Python** | CPython | 3.9+ | Runtime (3.12+ recommended) |
 | **Database** | PostgreSQL | 15+ | Relational database |
 | **Time-Series** | TimescaleDB | 2.11+ | Time-series extension |
 | **ORM** | SQLAlchemy | 2.0+ | Async database access |
@@ -1042,9 +1087,11 @@ docker run -d \
 | **WebSockets** | websockets | 12.0+ | Edge relay ↔ cloud |
 | **LSL** | pylsl | 1.17+ | Lab Streaming Layer |
 | **Signal Processing** | SciPy | 1.11+ | Filtering, FFT, integration |
-| **Numerical** | NumPy | 2.2+ | Array operations |
+| **Numerical** | NumPy | 1.24+ | Array operations |
 | **Compression** | msgpack | 1.0+ | Binary serialization |
 | **Config** | PyYAML | 6.0+ | Configuration files |
+| **Env Management** | python-dotenv | 1.0+ | Environment variables |
+| **Async DB** | asyncpg | 0.29+ | PostgreSQL async driver |
 
 ### Optional Technologies
 
@@ -1205,6 +1252,44 @@ Options:
 2. OAuth2 (future)
 3. mTLS (mutual TLS)
 ```
+
+### Security Best Practices (Implemented)
+
+**✅ Error Masking**
+```python
+mcp = FastMCP(
+    name="ZanderMCP",
+    mask_error_details=True  # Prevents internal error leakage
+)
+```
+- Internal exceptions are masked from clients
+- Only `ToolError` messages are exposed
+- Prevents information disclosure
+
+**✅ Input Validation**
+```python
+if minutes <= 0 or minutes > 1440:
+    raise ToolError("minutes must be between 1 and 1440 (24 hours)")
+```
+- All parameters validated at tool entry
+- Clear error messages for invalid input
+- Prevents injection attacks
+
+**✅ Context Logging**
+```python
+if ctx:
+    await ctx.info(f"Retrieved cognitive load: {result.get('workload')}")
+    await ctx.error(f"Operation failed: {e}")
+```
+- Audit trail via Context API
+- Visible in MCP Inspector
+- Helps with security monitoring
+
+**🔜 TODO: Additional Security**
+1. HTTPS/WSS for production deployment
+2. Rate limiting on WebSocket connections
+3. User authentication for MCP tools
+4. Database row-level security policies
 
 ### Data Privacy
 
@@ -1498,13 +1583,35 @@ More accurate cognitive state
 - ✅ Personalized ML models
 - ✅ Multi-user cloud platform
 
+**Implementation Status:**
+
+✅ **Phase 1 Complete:**
+- Database layer with TimescaleDB
+- Signal processing pipeline
+- Edge relay application
+- Alembic migrations
+
+✅ **Phase 2 Complete:**
+- FastMCP server with lifespan management (server.py - 950+ lines)
+- 14 MCP tools with best practices:
+  - Context API for safe service access
+  - Comprehensive error handling with ToolError
+  - Input validation on all parameters
+  - Example return values in docstrings
+- Security: `mask_error_details=True`
+- Configuration: `fastmcp.json` + `config.yaml`
+- WebSocket server for edge relay connections
+- Real-time stream buffer
+- Database persistence with batched writes
+
 **Next Steps:**
 
-1. Implement main server.py (MCP server with WebSocket ingestion)
-2. Deploy MVP to cloud platform
+1. ✅ ~~Implement main server.py~~ **DONE**
+2. Deploy MVP to cloud platform (Fly.io or Railway)
 3. Test with real BCI device and edge relay
-4. Collect training data for ML classifiers
-5. Scale to multiple users
+4. Implement Azure ML classifier integration
+5. Collect training data for ML classifiers
+6. Scale to multiple users
 
 ---
 
@@ -1531,6 +1638,7 @@ More accurate cognitive state
 
 ---
 
-**Document Version:** 1.0
-**Date:** 2025-11-04
+**Document Version:** 1.1
+**Date:** 2025-11-10
+**Last Updated:** Phase 2 implementation complete with FastMCP best practices
 **Author:** Jamie Ellis

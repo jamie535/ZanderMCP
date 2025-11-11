@@ -71,13 +71,24 @@ ZanderMCP enables AI assistants (Claude, Continue, etc.) to access real-time bra
 
 ### ✅ Implemented (Phase 2)
 
-- **ZanderMCP Server** (server.py)
+- **ZanderMCP Server** (server.py - 950+ lines)
   - FastMCP implementation with lifespan management
+  - **Best practices implemented**:
+    - ✅ Context API for safe service access
+    - ✅ Comprehensive error handling with ToolError
+    - ✅ Input validation on all parameters
+    - ✅ Security: `mask_error_details=True` for production
+    - ✅ Example return values in all tool docstrings
   - WebSocket server for edge relay connections
   - 14 MCP tools for cognitive state monitoring
   - Real-time and historical queries
   - Session management and event annotation
   - In-memory stream buffer for low-latency queries
+
+- **Configuration**
+  - `fastmcp.json`: Declarative server configuration
+  - `config.yaml`: Application settings
+  - `.env`: Environment variables
 
 - **Development Tools**
   - Docker Compose for local database
@@ -100,7 +111,9 @@ ZanderMCP enables AI assistants (Claude, Continue, etc.) to access real-time bra
 
 ```
 ZanderMCP/
-├── server.py                      # Main FastMCP server ✓
+├── server.py                      # Main FastMCP server (950+ lines) ✓
+├── fastmcp.json                    # Declarative MCP config ✓
+├── config.yaml                     # Application configuration ✓
 ├── edge_relay/
 │   ├── relay.py                   # Edge relay application ✓
 │   └── edge_relay_config.yaml     # Edge relay config ✓
@@ -125,8 +138,8 @@ ZanderMCP/
 ├── alembic/                        # Database migrations ✓
 ├── docker-compose.yml              # Local database setup ✓
 ├── pyproject.toml                  # Dependencies ✓
-├── config.yaml                     # Server configuration ✓
 ├── .env.example                    # Environment variables template ✓
+├── CLAUDE.md                       # Development guide for Claude Code ✓
 └── README.md                       # This file ✓
 ```
 
@@ -245,9 +258,11 @@ AI: "Your cognitive load is moderately high (0.73) and increasing.
      You might want to take a break soon."
 ```
 
-## Available MCP Tools
+## Available MCP Components
 
-The server exposes 14 MCP tools that AI assistants can use:
+The server exposes **14 MCP tools**, **4 resources**, and **4 prompts** for AI assistants:
+
+### MCP Tools (14)
 
 ### Real-time Monitoring
 
@@ -273,6 +288,33 @@ The server exposes 14 MCP tools that AI assistants can use:
 
 - **`list_classifiers()`** - Available classification models and their metadata
 - **`get_server_stats()`** - Connection info, buffer stats, and system status
+
+**Tags:** All tools are tagged for easy filtering:
+- `realtime`, `monitoring` - Low-latency real-time queries
+- `historical`, `database` - Historical data from database
+- `session`, `management` - Session control and management
+- `research`, `annotation` - Research and data annotation
+- `admin`, `debug` - Administrative and debugging tools
+- `classifier` - Classifier-related operations
+- `production` - Production-ready tools
+
+### MCP Resources (4)
+
+Resources provide read-only access to configuration and data:
+
+- **`config://server`** - Server configuration and settings
+- **`config://classifiers`** - Classifier metadata and parameters
+- **`data://session/{session_id}/export`** - Export session data as CSV
+- **`docs://api-guide`** - Complete API documentation
+
+### MCP Prompts (4)
+
+Prompts provide AI workflow templates for common tasks:
+
+- **`analyze_cognitive_load(user_id?)`** - Comprehensive cognitive load analysis workflow
+- **`research_session_analysis(session_id)`** - Detailed research session analysis
+- **`monitor_active_sessions()`** - Operational monitoring and health checks
+- **`getting_started_guide()`** - Onboarding guide for new users
 
 ## Database Schema
 
@@ -397,7 +439,7 @@ AI assistants detect high cognitive load and:
 ## Roadmap
 
 - [x] Phase 1: Database, signal processing, edge relay
-- [ ] Phase 2: ZanderMCP server, MCP tools
+- [x] Phase 2: ZanderMCP server, MCP tools, best practices
 - [ ] Phase 3: Model service, ML classifier support
 - [ ] Phase 4: Docker deployment, CI/CD
 - [ ] Phase 5: Advanced analytics, multi-user support

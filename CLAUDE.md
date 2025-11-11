@@ -186,12 +186,17 @@ Weights for workload (from config.yaml):
 
 ### ✅ Phase 2 Complete
 
-- **server.py**: Main FastMCP server with lifespan management (410 lines)
+- **server.py**: Main FastMCP server with lifespan management (950+ lines)
+  - ✅ FastMCP best practices implemented (Context API, error handling, security)
+  - ✅ All 14 tools with comprehensive error handling and validation
+  - ✅ Example return values in all tool docstrings
+  - ✅ Security: `mask_error_details=True` for production
 - **ingestion/websocket_server.py**: WebSocket server for edge relay connections (450 lines)
 - **ingestion/stream_buffer.py**: In-memory buffer for real-time queries (340 lines)
 - **tools/realtime.py**: Real-time cognitive state monitoring (450+ lines)
 - **tools/history.py**: Historical database queries (400+ lines)
 - **tools/session.py**: Session management and event annotation (270+ lines)
+- **fastmcp.json**: Declarative configuration for deployment
 - **Docker**: docker-compose.yml for TimescaleDB development database
 - **Database**: Alembic migrations initialized and applied
 
@@ -234,6 +239,71 @@ The server exposes 14 MCP tools for AI assistants:
 - `list_classifiers()` → Available classification models
 - `get_server_stats()` → Connection info, buffer stats, system status
 
+## FastMCP Best Practices (Implemented)
+
+### ✅ Server Architecture
+
+1. **Lifespan Management** (server.py:97-189)
+   - Use `@asynccontextmanager` for startup/shutdown logic
+   - Initialize long-running services (WebSocket, DB, persistence) in lifespan
+   - Yield `None` (not service objects) - services accessed via Context or global
+   - Proper cleanup in `finally` block to ensure graceful shutdown
+   - **Critical**: Lifespan runs once per server instance, not per client session
+
+2. **Context API Usage** (server.py:200-932)
+   - All MCP tools accept `ctx: Context = None` parameter
+   - Use `ctx.info()`, `ctx.error()` for logging (visible in MCP inspector)
+   - Use `ctx.get_state()` / `ctx.set_state()` for request-scoped data
+   - Never access services via global variables directly in tools
+   - Use helper function `_get_app_context(ctx)` for safe service retrieval
+
+3. **Error Handling Pattern**
+   ```python
+   @mcp.tool()
+   async def my_tool(param: str, ctx: Context = None) -> dict:
+       try:
+           app_ctx = _get_app_context(ctx)
+           # ... tool logic
+           if ctx:
+               await ctx.info("Operation successful")
+           return result
+       except ToolError:
+           raise  # Re-raise ToolError as-is
+       except ValueError as e:
+           raise ToolError(f"Invalid input: {e}")  # Convert to ToolError
+       except Exception as e:
+           if ctx:
+               await ctx.error(f"Internal error: {e}")
+           raise ToolError("Operation failed. Please try again.")
+   ```
+
+4. **Security Configuration**
+   ```python
+   mcp = FastMCP(
+       name="ZanderMCP",
+       lifespan=app_lifespan,
+       mask_error_details=True,  # Masks internal errors from clients
+   )
+   ```
+
+5. **Input Validation**
+   - Always validate parameters at tool entry (ranges, required fields, formats)
+   - Raise `ToolError` with clear messages for validation failures
+   - Example: `if minutes <= 0 or minutes > 60: raise ToolError("minutes must be between 1 and 60")`
+
+6. **Documentation Standards**
+   - All tools must have comprehensive docstrings with:
+     - Description of functionality
+     - `Args:` section with parameter descriptions
+     - `Returns:` section with detailed structure
+     - `Example:` section with actual JSON return value
+   - Example return values help LLMs understand tool output structure
+
+7. **Configuration Management**
+   - Use `fastmcp.json` for declarative server configuration
+   - Specify dependencies, Python version, transport settings
+   - Use environment variable placeholders: `${VARIABLE_NAME}`
+
 ## Important Implementation Notes
 
 1. **Always use async/await**: All I/O operations (database, WebSocket, HTTP) must be async to prevent blocking
@@ -242,19 +312,40 @@ The server exposes 14 MCP tools for AI assistants:
 4. **Timestamps**: Use timezone-aware datetime (PostgreSQL TIMESTAMPTZ), always UTC
 5. **Error handling**: WebSocket disconnections are expected; use auto-reconnect with exponential backoff
 6. **Memory management**: Stream buffers should be bounded (use collections.deque with maxlen)
+7. **Tool errors**: Always use `ToolError` from `fastmcp.exceptions`, never generic exceptions
+8. **Context logging**: Use `ctx.info()` / `ctx.error()` for debugging, not print() or logger directly
 
 ## Key Files Reference
 
+### Core Server
+- `server.py`: Main FastMCP server with lifespan, tools, error handling (950+ lines)
+- `fastmcp.json`: Declarative server configuration (dependencies, transport, env vars)
+- `config.yaml`: Application configuration (WebSocket, DB, signal processing)
+
+### Database Layer
 - `database/models.py`: SQLAlchemy ORM models (Session, Prediction, Event, etc.)
 - `database/connection.py`: Async database connection and initialization
 - `database/persistence.py`: Batched write manager
+- `alembic/`: Database migration scripts
+
+### Signal Processing
 - `signal_processing/preprocessing.py`: Filtering and PSD computation
 - `signal_processing/features.py`: Band power extraction and workload calculation
+
+### Classification
 - `classifiers/base.py`: Abstract classifier interface
 - `classifiers/signal_processing.py`: Deterministic classifier (no ML)
+
+### MCP Tools
+- `tools/realtime.py`: Real-time cognitive state monitoring
+- `tools/history.py`: Historical database queries
+- `tools/session.py`: Session management and event annotation
+
+### Data Ingestion
+- `ingestion/websocket_server.py`: WebSocket server for edge relays
+- `ingestion/stream_buffer.py`: In-memory buffer for real-time queries
 - `edge_relay/relay.py`: LSL to WebSocket relay application
-- `config.yaml`: Main server configuration
-- `alembic/`: Database migration scripts
+- `edge_relay/edge_relay_config.yaml`: Edge relay configuration
 
 ## Adding a New Classifier
 
