@@ -2,7 +2,7 @@
   "name": "ZanderMCP",
   "version": "1.0.0",
   "description": "Brain-Computer Interface MCP Server for real-time cognitive state monitoring and workload classification",
-  "source": "server.py:mcp",
+  "source": "server.py",
   "environment": {
     "python": ">=3.9",
     "dependencies": [
